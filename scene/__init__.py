@@ -106,6 +106,7 @@ class Scene:
 
         self.cameras_extent = scene_info.nerf_normalization["radius"]
 
+        self.cameras_torch = []
         for resolution_scale in resolution_scales:
             print("Loading Training Cameras")
             #import pdb; pdb.set_trace()
@@ -126,12 +127,17 @@ class Scene:
             self.test_cameras[resolution_scale] = cameraList_from_camInfos(scene_info.test_cameras, resolution_scale, args)
 
         if self.loaded_iter:
-            self.gaussians.load_ply(os.path.join(self.model_path,
-                                                           "point_cloud",
-                                                           "iteration_" + str(self.loaded_iter),
-                                                           "point_cloud.ply"))
+            self.gaussians.load_ply(os.path.join(self.model_path, "point_cloud", "iteration_" + str(self.loaded_iter), "point_cloud.ply"))
         else:
             self.gaussians.create_from_pcd(scene_info.point_cloud, self.cameras_extent)
+
+        # naive implementation to deal with pose noise
+        # set camera parameters as learnbale parameters
+        l = [
+            {'params': [camera.R for camera in self.train_cameras[resolution_scale]], 'lr': 0.00016, "name": "cameras_R"},
+            {'params': [camera.T for camera in self.train_cameras[resolution_scale]], 'lr': 0.00016, "name": "cameras_T"},
+        ]
+        self.optimizer = torch.optim.Adam(l, lr=0.0, eps=1e-15)
 
     def save(self, iteration):
         point_cloud_path = os.path.join(self.model_path, "point_cloud/iteration_{}".format(iteration))
